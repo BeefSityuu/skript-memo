@@ -1,0 +1,360 @@
+# Name: newEnderchest.sk
+# Version: 2.0
+# Description: エンダーチェスト拡張スクリプト。 skript-yamlを用いて変数が増えるのを防ぐ
+# Plugins: Skript, skript-yaml
+# Tested Versions: 1.12.2
+
+#====================#
+#ダイレクトリ: "plugins/ItemFiles/enderDataTunnel/<uuid>.yml"
+
+options:
+	2ReqLv: 15
+	2ReqGold: 10000
+	3ReqLv: 17
+	3ReqGold: 80000
+	4ReqLv: 22
+	4ReqGold: 150000
+	5ReqLv: 30
+	5ReqGold: 300000
+	6ReqLv: 33
+	6ReqGold: 700000
+	7ReqLv: 33
+	7ReqGold: 1000000
+on load:
+	set {enderChestPrice::2} to 10000
+	set {enderChestPrice::3} to 80000
+	set {enderChestPrice::4} to 150000
+	set {enderChestPrice::5} to 300000
+	set {enderChestPrice::6} to 700000
+	set {enderChestPrice::7} to 1000000
+	set {enderChestPrice::8} to 2000000
+	set {enderChestPrice::9} to 3000000
+	set {enderChestPrice::10} to 5000000
+	set {enderChestPrice::11} to 8000000
+	set {enderChestPrice::12} to 15000000
+	set {enderChestPrice::13} to 20000000
+	set {enderChestPrice::14} to 30000000
+	set {enderChestLv::2} to 15
+	set {enderChestLv::3} to 17
+	set {enderChestLv::4} to 22
+	set {enderChestLv::5} to 30
+	set {enderChestLv::6} to 33
+	set {enderChestLv::7} to 33
+	set {enderChestLv::8} to 40
+	set {enderChestLv::9} to 45
+	set {enderChestLv::10} to 50
+	set {enderChestLv::11} to 50
+	set {enderChestLv::12} to 50
+	set {enderChestLv::13} to 50
+	set {enderChestLv::14} to 50
+on unload:
+	delete {isEnderOpen::*}
+
+on join:
+	set {isEnderOpen::%player%} to false
+
+#1時間ごとにキャッシュを保存させる
+every 1 hour:
+	loop {enderCache::*}:
+		save yaml "ender_%loop-value%"
+	broadcast "&7[EnderChest] キャッシュを保存しました。"
+
+command /debug <text>:
+	permission: admin
+	trigger:
+		if arg 1 is "on" or "1" or "true":
+			set {enderChestDebug::%player%} to true
+			send "&7[Debug] enderChestDebug: &atrue"
+		else if arg 1 is "off" or "0" or "false":
+			set {enderChestDebug::%player%} to false
+			send "&7[Debug] enderChestDebug: &cfalse"
+		else:
+			send "/debug <on | off>"
+
+#yamlファイル読み込み
+on script load:
+	broadcast "&7[EnderChest] システムが起動しました。"
+
+on script unload:
+	loop {enderCache::*}:
+		save yaml "ender_%loop-value%"
+		unload yaml "ender_%loop-value%"
+	if yaml "items" is loaded:
+		unload yaml "items"
+	broadcast "&7[EnderChest] キャッシュを保存し、システムを落としました。"
+	delete {enderCache::*}
+
+
+#エンダーチェストを開くとき
+on right click on a ender chest:
+	if player is not op:
+		cancel event
+	if {%{currentClass::%player's uuid%}%Level::%player's uuid%} < 5:
+		send "&cエンダーチェストはレベル5から使用可能です"
+		stop
+	if {enderChestUnlocked::%player's uuid%::1} is not set:
+		set {enderChestUnlocked::%player's uuid%::1} to true
+	
+	if yaml "ender_%player's uuid%" isn't loaded:
+		load yaml "plugins/ItemFiles/Tunnel/%player's uuid%.yml" as "ender_%player's uuid%"
+		add player's uuid to {enderCache::*}
+		if {enderChestDebug::%player%} is true:
+			send "[EnderChest] Loaded %player%'s yml file. (UUID: %player's uuid%)"
+	
+	if yaml "ender_%player's uuid%" is loaded:
+		if block under is diamond block:
+			cancel event
+			open virtual chest inventory with size 2 named "アイテム倉庫" to player
+			loop 2 times:
+				format gui slot (-9 + loop-number*9) of player with gray stained glass pane named "&7" to do nothing
+				format gui slot (-1 + loop-number*9) of player with gray stained glass pane named "&7" to do nothing
+			set {_i} to 1
+			loop 7 times:
+				if {enderChestUnlocked::%player's uuid%::%{_i}%} is true:
+					set {_lore::*} to "&a解禁済み"
+					format gui slot {_i} of player with ender chest named "&fアイテム倉庫 &a%{_i}%" with lore {_lore::*} to run function checkEnderchest(player, {_i}) with "left" click
+				else:
+					if {_i} <= 10:
+						set {_lore::*} to "&c未解禁" , "", "&7解放条件:", " &a✔ Level %{enderChestLv::%{_i}%}%+", " &e⛀ %fnAddCommas({enderChestPrice::%{_i}%})%g", "", "&d >> 右クリックで解禁 <<"
+					else:
+						set {_lore::*} to "&c未解禁", "&7[解禁不可]"				
+				format gui slot {_i} of player with ender chest named "&fアイテム倉庫 &a%{_i}%" with lore {_lore::*} to close then run function unlockEnderChest(player, {_i}) with "right" click
+				add 1 to {_i}
+			# 2列目
+			loop 7 times:
+				if {enderChestUnlocked::%player's uuid%::%{_i}%} is true:
+					set {_lore::*} to "&a解禁済み"
+					format gui slot {_i}+2 of player with ender chest named "&fアイテム倉庫 &a%{_i}%" with lore {_lore::*} to run function checkEnderchest(player, {_i}) with "left" click
+				else:
+					if {_i} <= 14:
+						set {_lore::*} to "&c未解禁" , "", "&7解放条件:", " &a✔ Level %{enderChestLv::%{_i}%}%+", " &e⛀ %fnAddCommas({enderChestPrice::%{_i}%})%g", "", "&d >> 右クリックで解禁 <<"
+					else:
+						set {_lore::*} to "&c未解禁", "&7[解禁不可]"				
+				format gui slot {_i}+2 of player with ender chest named "&fアイテム倉庫 &a%{_i}%" with lore {_lore::*} to close then run function unlockEnderChest(player, {_i}) with "right" click
+				add 1 to {_i}
+
+command /setEnderState <number> <boolean>:
+	permission: admin
+	trigger:
+		set {enderChestUnlocked::%player's uuid%::%arg 1%} to arg 2
+		send "&fエンダーチェスト&a%arg 1%&fの開放状態を&a%arg 2%&fにしました" to player
+
+command checkLastEChest <player>:
+	permission: admin
+	trigger:
+		send "lastEChest of %arg 1%: %{lastEChest::%arg 1's uuid%}%"
+
+function checkEnderchest(p: player, n: number):
+	set {_uuid} to uuid of {_p}
+	if {enderChestUnlocked::%{_uuid}%::%{_n}%} is true:
+		play sound "BLOCK_ENDERCHEST_OPEN" with volume 1 with pitch 1 at {_p}'s location
+		set {lastEChest::%{_uuid}%} to {_n}
+		set {isEnderOpen::%{_p}%} to true
+		
+		#アイテム読み込み
+		open virtual chest inventory with size 6 named "アイテム倉庫 %{_n}%" to {_p}
+		set {_slot} to 0
+		if {enderChestDebug::%{_p}%} is true:
+			send "[EnderChest] Loading items from %{_uuid}%.yml.." to {_p}
+		loop 54 times:
+			set {_slotItem} to yaml value "enderChest%{_n}%.%{_slot}%" from "ender_%{_uuid}%"
+			set slot {_slot} of {_p}'s current inventory to {_slotItem}
+			add 1 to {_slot}
+		if {enderChestDebug::%{_p}%} is true:
+			send "[EnderChest] Finished loading items from %{_uuid}%.yml. (%{_n}%)" to {_p}
+		
+	else:
+		send "&c倉庫%{_n}%は未解禁です" to {_p}
+
+function unlockEnderChest(p: player, n: number):
+	set {_uuid} to uuid of {_p}
+	if {_n} > 14:
+		send "&7倉庫%{_n}%は解禁できません" to {_p}
+		stop
+	if {enderChestUnlocked::%{_uuid}%::%{_n}%} is true:
+		send "&7倉庫%{_n}%は解禁済みです" to {_p}
+	else:
+		if {%{currentClass::%{_uuid}%}%Level::%{_uuid}%} < {enderChestLv::%{_n}%}:
+			send "&c解禁レベルまでに到達してません" to {_p}
+			stop
+		else:
+			if {gold::%{_uuid}%} >= {enderChestPrice::%{_n}%}:
+				send "&f倉庫&a%{_n}%&fを解禁しました！" to {_p}
+				play sound "ENTITY_PLAYER_LEVELUP" with volume 1 with pitch 2 at {_p}'s location
+				set {enderChestUnlocked::%{_uuid}%::%{_n}%} to true
+				set {gold::%{_uuid}%} to {gold::%{_uuid}%} - {enderChestPrice::%{_n}%}
+
+# 指定の場所にあるアイテムを戻す
+function returnEnderChestItem(p: player, n: number) :: item:
+	set {_uuid} to uuid of {_p}
+
+	# 読み込まれてるかの確認
+	if yaml "ender_%{_uuid}%" isn't loaded:
+		load yaml "plugins/ItemFiles/Tunnel/%{_uuid}%.yml" as "ender_%{_uuid}%"
+		add {_uuid} to {enderCache::*}
+		if {enderChestDebug::%{_p}%} is true:
+			send "[EnderChest] Loaded %{_p}%'s yml file. (UUID: %{_uuid}%)" to {_p}
+
+	set {_slotItem} to yaml value "enderChest1.%{_n}%" from "ender_%{_uuid}%"
+	return {_slotItem}
+
+#アイテム保存
+on inventory close:
+	if inventory name of player's current inventory is "アイテム倉庫 %{lastEChest::%player's uuid%}%":
+		#send "%{lastEChest::%player's uuid%}%"
+		
+		#既にデータがあるか確認
+		if yaml path "enderChest%{lastEChest::%player's uuid%}%" in "ender_%player's uuid%" has value:
+			if {enderChestDebug::%player%} is true:
+				send "[EnderChest] enderChest%{lastEChest::%player's uuid%}%.* has value."
+		else:
+			if {enderChestDebug::%player%} is true:
+				send "[EnderChest] enderChest%{lastEChest::%player's uuid%}%.* doesn't have a value."
+		
+		set {_slot} to 0
+		play sound "BLOCK_ENDERCHEST_CLOSE" with volume 1 with pitch 1 at player's location
+		
+		#前に開いた時間、そのときのユーザーネームを記録
+		set yaml value "playerName" from "ender_%player's uuid%" to "%player%"
+		set yaml value "lastOpened" from "ender_%player's uuid%" to now
+		if {enderChestDebug::%player%} is true:
+			send "[EnderChest] Updated playerName and lastOpened."
+		
+		#アイテムの保存
+		loop 54 times:
+#			set {enderChest1::%player's uuid%::%{_slot}%} to slot {_slot} of player's current inventory
+			set yaml value "enderChest%{lastEChest::%player's uuid%}%.%{_slot}%" from "ender_%player's uuid%" to slot {_slot} of player's current inventory
+			add 1 to {_slot}
+		if {enderChestDebug::%player%} is true:
+			send "[EnderChest] Saved all item data."
+		
+		set {lastEChest::%player's uuid%} to -1
+		set {isEnderOpen::%player%} to false
+
+
+command /saveCache:
+	permission: admin
+	trigger:
+		loop {enderCache::*}:
+			save yaml "ender_%loop-value%"
+		send "[EnderChest] Saved cached data."
+		if {enderChestDebug::%player%} is true:
+			send "%{enderCache::*}%"
+
+command /loadedPlayers:
+	permission: admin
+	trigger:
+		send "%{enderCache::*}%"
+
+command /LoadEnder <player>:
+	permission: admin
+	trigger:
+		if yaml "ender_%arg 1's uuid%" isn't loaded:
+			load yaml "plugins/ItemFiles/Tunnel/%arg 1's uuid%.yml" as "ender_%arg 1's uuid%"
+			add arg 1's uuid to {enderCache::*}
+			send "[EnderChest] Loaded %arg 1%'s data."
+		else:
+			send "[EnderChest] %arg 1%'s data is already loaded."
+
+command /unLoadEnder <player>:
+	permission: admin
+	trigger:
+		unload yaml "ender_%arg 1's uuid%"
+		send "[EnderChest] Unloaded %arg 1%'s data."
+
+command /uuid <offlineplayer>:
+	permission: admin
+	trigger:
+		send "%arg 1%'s UUID: %arg 1's uuid%"
+
+#-----------デバッグ用-----------#
+
+#command /listAddPlayer <offlineplayer>:
+#	permission: admin
+#	trigger:
+#		add arg 1 to {test::*}
+#		send "%{test::*}%"
+
+#command /listContentsTest:
+#	permission: admin
+#	trigger:
+#		loop {test::*}:
+#			send "%loop-value%"
+
+#-----------デバッグ用-----------#
+
+# Dupe対策
+on resurrect attempt:
+	entity is player
+	{isEnderOpen::%entity%} is true
+	close entity's inventory
+
+#他人のエンダーチェストをのぞくもの
+command /ec <number> [<offlineplayer>]:
+	permission: admin
+	trigger:
+		if arg 1 is not a integer:
+			send "arg 1は整数で"
+			stop
+		if arg 2 is not set:
+			set {_p} to player
+			set {_uuid} to uuid of {_p}
+		else if arg 2 is set:
+			set {_p} to arg 2
+			set {_uuid} to uuid of {_p}
+		
+		open virtual chest inventory with size 6 named "アイテム倉庫 %arg 1%" to player
+		set {_slot} to 0
+		if {enderChestDebug::%player%} is true:
+			send "[EnderChest] Loading items from %{_uuid}%.yml.." to player
+		loop 54 times:
+			set {_slotItem} to yaml value "enderChest%arg 1%.%{_slot}%" from "ender_%{_uuid}%"
+			set slot {_slot} of player's current inventory to {_slotItem}
+			add 1 to {_slot}
+		if {enderChestDebug::%player%} is true:
+			send "[EnderChest] Finished loading items from %{_uuid}%.yml. (%arg 1%)" to player
+		
+#過去のエンダーチェストデータを引き継ぐもの 各自打ってもらう
+command /enderUpdate [<text>]:
+	trigger:
+		if arg 1 is not set:
+			send "&7このコマンドを実行するとアプデ前のエンダーチェストの中身が"
+			send "&7今の倉庫1番の中身になります。"
+			send "&c既に倉庫1番にアイテムを入れてたとしても上書きされるので"
+			send "&7倉庫1番を空にしてから行うことを強くお勧めします"
+			send ""
+			send "&7エンダーチェストの中身を移行する準備ができたら"
+			send "&a/enderUpdate confirm&7を実行してください。"
+		else if arg 1 is "confirm":
+			if {enderUpdated::%player's uuid%} is true:
+				send "&7引き継ぎはすでに行ってます"
+				stop
+			set {enderUpdated::%player's uuid%} to true
+			if yaml "items" isn't loaded:
+				load yaml "plugins/ItemFiles/enderChest.yml" as "items"
+			if yaml "ender_%player's uuid%" isn't loaded:
+				load yaml "plugins/ItemFiles/Tunnel/%player's uuid%.yml" as "ender_%player's uuid%"
+				add player's uuid to {enderCache::*}
+				if {enderChestDebug::%player%} is true:
+					send "[EnderChest] Loaded %player%'s yml file. (UUID: %player's uuid%)"
+			
+			set yaml value "playerName" from "ender_%player's uuid%" to "%player%"
+			set yaml value "lastOpened" from "ender_%player's uuid%" to now
+			
+			set {_n} to 0
+			loop 54 times:
+				set yaml value "enderChest1.%{_n}%" from "ender_%player's uuid%" to (yaml value "%player's uuid%.enderChest1.%{_n}%" from "items")
+				add 1 to {_n}
+			
+			send "&9>> &7エンダーチェストの中身引継ぎが完了しました。"
+
+command /reset:
+	permission: admin
+	trigger:
+		delete {enderChestUnlocked::*}
+		send "deleted unlock data"
+
+command /resetEnderUpdate:
+	permission: admin
+	trigger:
+		set {enderUpdated::%player's uuid%} to false
